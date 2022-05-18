@@ -1,0 +1,175 @@
+//Created by Fern Dragonborn
+
+using System;
+using System.Collections.Generic;
+using Newtonsoft.Json;
+using Google.Apis.Sheets.v4;
+using Google.Apis.Sheets.v4.Data;
+using Google.Apis.Auth.OAuth2;
+using static System.Console;
+
+namespace Program
+{
+    public static class Crud
+    {
+        static readonly string[] Scopes = { SheetsService.Scope.Spreadsheets };
+        static readonly string ApplicationName = "Input app name";
+        static readonly string SpreadsheetIdPsy = "Input your sheet ID";
+        static readonly string SpreadsheetIdClient = "Input your sheet ID";
+        static string? SpreadsheetId;
+        static string? sheet;
+        static SheetsService service;
+
+        /// <summary> IMPORTANT: Use in start of program. Or will not work</summary>
+        public static void DbInit()
+        {
+            //for ukr (and other) lang support
+            Console.OutputEncoding = System.Text.Encoding.Default;
+            //google authentication shit. Don't touch
+            GoogleCredential credential;
+            using (var stream = new FileStream("client_secrets.json", FileMode.Open, FileAccess.Read))
+            {
+                credential = GoogleCredential.FromStream(stream)
+                    .CreateScoped(Scopes);
+            }
+            service = new SheetsService(new Google.Apis.Services.BaseClientService.Initializer()
+            {
+                HttpClientInitializer = credential,
+                ApplicationName = ApplicationName,
+            });
+            WriteLine("CRUD-module initialization successfull");
+        }
+        //TODO write your sheet names down and expand fork if needed
+        ///<summary>IMPORTANT: use in every CRUD method for suitablility in usage</summary>
+        private static string BookAndSheetSelection(int bookId, int sheetId)
+        {
+            if (bookId == 1)
+            {
+                SpreadsheetId = SpreadsheetIdPsy;
+                if (sheetId == 1) sheet = "1ST SHEET NAME";
+                else if (sheetId == 2) sheet = "2ND SHEET NAME";
+                else WriteLine("Error: wrong sheet id");
+            }
+            else if (bookId == 2)
+            {
+                SpreadsheetId = SpreadsheetIdClient;
+                if (sheetId == 1) sheet = "1ST SHEET NAME";
+                else if (sheetId == 2) sheet = "2ND SHEET NAME";
+                else WriteLine("Error: wrong sheet id");
+            }
+            else WriteLine("Error: wrong book id");
+
+            WriteLine($"BookID: {bookId}\nSheet name: {sheet}");
+            return sheet;
+        }
+        private static void CheckNullInput(dynamic data)
+        {
+            var ErrNullInput = new Exception("Null input");
+            if (data == null) throw ErrNullInput;
+        }
+        readonly static string[] ColumnNames = {
+            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+            "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+            "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ", "AK", "AL", "AM",
+            "AN", "AO", "AP", "AQ", "AR", "AS", "AT", "AU", "AV", "AW", "AX", "AY", "AZ"
+        };
+
+        ///<summary>How to use: CreateEntry( 1, 1, "A", {"input1", "input2",...} ) --- INFO: Imports evry input in next column. In "firstColumn" input the letter of 1st column in entry</summary>
+        ///<returns>Nothing. Creates the entry in table</returns>
+        public static void CreateEntry(int bookId, int sheetId, string firstColumn, List<object> enteriesList)
+        {
+            CheckNullInput(enteriesList);
+            BookAndSheetSelection(bookId, sheetId);
+            //for the simplicity this methods helps you to only enter 1st column name
+            int index = Array.IndexOf(ColumnNames, firstColumn) + enteriesList.Count;
+            string secondColumn = ColumnNames[index];
+            var range = $"{sheet}!{firstColumn}:{secondColumn}";
+
+            var valueRange = new ValueRange();
+            valueRange.Values = new List<IList<object>> { enteriesList };
+
+            var appendRequest = service.Spreadsheets.Values.Append(valueRange, SpreadsheetId, range);
+            appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.
+                ValueInputOptionEnum.USERENTERED;
+            var appendResponse = appendRequest.Execute();
+
+        }
+        /// <summary>How to use: ReadEntry( 1, 1, "A1:B2" )</summary>
+        /// <returns>The entries in selected range</returns>
+        public static IList<IList<object>> ReadEntry(int bookId, int sheetId, string cells)
+        {
+            BookAndSheetSelection(bookId, sheetId);
+            string range = $"{sheet}!{cells}";
+
+            SpreadsheetsResource.ValuesResource.GetRequest readRequest =
+                service.Spreadsheets.Values.Get(SpreadsheetId, range);
+            var response = readRequest.Execute();
+            var values = response.Values;
+            if (values != null && values.Count > 0)
+                return values;
+            else { WriteLine("No data found"); return values; }
+        }
+        ///<summary>How to use: UpdateEntry(1,1,"A1",{"entry"})</summary>
+        ///<returns>Nothing. Updates the cell</returns>
+        public static void UpdateEntry(int bookId, int sheetId, string cell, List<object> enteriesList)
+        {
+            CheckNullInput(enteriesList);
+            BookAndSheetSelection(bookId, sheetId);
+            string range = $"{sheet}!{cell}";
+            var valueRange = new ValueRange();
+
+            //{"updated"} only 1 entry is supported
+            valueRange.Values = new List<IList<object>> { enteriesList };
+
+            var updateRequest = service.Spreadsheets.Values.Update(valueRange, SpreadsheetId, range);
+            updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest
+                .ValueInputOptionEnum.USERENTERED;
+            var updateResponse = updateRequest.Execute();
+        }
+        ///<summary>How to use: DeleteEnry( 1, 1, "A1" )</summary>
+        ///<returns>Nothing. Deletes a selected range of cells in table</returns>
+        public static void DeleteEntry(int bookId, int sheetId, string cells)
+        {
+            BookAndSheetSelection(bookId, sheetId);
+            string range = $"{sheet}!{cells}";
+            var requestBody = new ClearValuesRequest();
+
+            var deleteRequest = service.Spreadsheets.Values.Clear(requestBody, SpreadsheetId, range);
+            var deleteResponse = deleteRequest.Execute();
+        }
+        //TODO Needs improvement in writing enteries to console
+        //writes results to console
+        public static void ReadEntry_Console(int bookId, int sheetId, string cells)
+        {
+            var values = ReadEntry(bookId, sheetId, cells);
+
+            if (values != null && values.Count > 0)
+            {
+                foreach (var row in values)
+                    WriteLine($"- {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}");
+            }
+            else WriteLine("No data found");
+        }
+        //TODO WIP 
+        public static void ReadEntry_Filter(int bookId, int sheetId)
+        {
+            BookAndSheetSelection(bookId, sheetId);
+
+            var dataFilters = new List<DataFilter>();
+            var dataFilter = new DataFilter();
+            dataFilter.A1Range = "";
+            dataFilters.Add(dataFilter);
+            var requestBody = new BatchGetValuesByDataFilterRequest();
+            requestBody.DataFilters = dataFilters;
+
+            SpreadsheetsResource.ValuesResource.BatchGetByDataFilterRequest batchReadRequest =
+                service.Spreadsheets.Values.BatchGetByDataFilter(requestBody, SpreadsheetId);
+
+            var response = batchReadRequest.Execute();
+            var values = JsonConvert.SerializeObject(response);
+
+            WriteLine(JsonConvert.SerializeObject(values));
+            WriteLine(JsonConvert.SerializeObject(response));
+        }
+    }
+}
