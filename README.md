@@ -1,6 +1,6 @@
 # GoogleSheets-CRUD-expanded
-Created by Fern Dragonborn
-If you want, you can improve this program
+Created by Fern Dragonborn.
+If you want, you can improve this module
 
 Please, do not forget to install APIs via NuGet
 APIs used:
